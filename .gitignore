@@ -1,0 +1,66 @@
+# Ignore generated files
+
+# Python environments
+rag_env/
+.venv/
+venv/
+ENV/
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Build and package artifacts
+build/
+dist/
+site/
+*.egg-info/
+pip-wheel-metadata/
+
+# Test and coverage output
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ChromaDB and other local databases
+chroma_db/
+*.sqlite
+*.sqlite3
+*.db
+
+# Local documents and uploaded PDFs
+data/
+documents/
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+.secrets/
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# IDE and editor state
+.vscode/
+.idea/
+
+# Logs and operating-system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
