@@ -1,10 +1,10 @@
 # Lab 01 – Machine Learning and Sentiment Analysis
 
 **Module:** PUSL3205 – Large Language Models and Generative AI  
-**Student Name:** Janindu Udana  
-**Student ID:** [Enter your Student ID]  
+**Student Name:** Senarathge Senarath  
+**Student ID:** 10965304 
 **Laboratory:** 01  
-**Date:** 15 November 2026
+**Date:** 26/10/2026
 
 ---
 
@@ -79,6 +79,18 @@ Explored the dataset to understand differences between positive and negative sen
 - Compared word frequencies between positive and negative sentences.
 - Used NLTK English stopwords during word frequency analysis.
 - Retained important negation words such as "not", "no", "nor" and "never" during this exploration.
+
+#### Key Findings from Word Frequency Analysis
+
+The comparison of word frequencies revealed several interesting patterns:
+
+- **Positive reviews:** Frequently contained words such as "great", "wonderful", "best", "love" and "funny".
+- **Negative reviews:** Frequently contained words such as "bad", "not", "no" and "plot".
+- **Common words:** Words such as "film" and "movie" appeared frequently in both classes, making them less useful for distinguishing positive and negative sentiment.
+- **Ambiguous words:** The word "good" appeared in both positive and negative reviews. This indicates that individual word frequency alone may not be sufficient to determine sentiment accurately.
+
+This observation highlights an important limitation of unigram Bag of Words, which cannot capture word combinations and contextual relationships effectively.
+
 
 ### Task 04 – Split the Dataset
 
@@ -180,33 +192,40 @@ The confusion matrix indicated that 107 out of 150 test sentences were classifie
 
 The four additional sentences demonstrated that the trained model could classify previously unseen textual inputs.
 
+
 ### Screenshots
 
 The following screenshots provide evidence of the practical implementation and results.
 
-**1. Dataset Exploration**
+#### 1. Dataset Loading
+![Dataset Loading](screenshots/01-Load_the_dataset.png)
 
-![Dataset exploration](screenshots/01-Load_the_dataset.png)
+#### 2. Text Preprocessing
+![Text Preprocessing](screenshots/02-Preprocessing.png)
 
-**2. Text Preprocessing**
+#### 3. Dataset Exploration and Word Frequency Analysis
+![Dataset Exploration](screenshots/03-Exploration.png)
 
-![Text preprocessing](screenshots/02-Preprocessing.png)
+#### 4. Training and Testing Data Split
+![Data Splitting](screenshots/04-Split.png)
 
-**3. Word Frequency Analysis**
+#### 5. Bag of Words Implementation
+![Bag of Words](screenshots/05-BOW.png)
 
-![Word frequency analysis](screenshots/03-Exploration.png)
+#### 6. Bag of Words Feature Representation
+![BoW Features](screenshots/06-BOW.png)
 
-**4. Model Evaluation**
+#### 7. Logistic Regression Model Training
+![Model Training](screenshots/07-Model_train.png)
 
-![Model evaluation](screenshots/08-Model_evaluation_results.png)
+#### 8. Model Evaluation
+![Model Evaluation](screenshots/08-Model_evaluation_results.png)
 
-**5. Confusion Matrix**
+#### 9. Confusion Matrix
+![Confusion Matrix](screenshots/09-confusion_matrix_plot.png)
 
-![Confusion matrix](screenshots/09-confusion_matrix_plot.png)
-
-**6. Sentiment Prediction Results**
-
-![Sentiment predictions](screenshots/10-Model_testing.png)
+#### 10. Sentiment Prediction Results
+![Sentiment Predictions](screenshots/10-Model_testing.png)
 
 ## 6. Observations and Critical Analysis
 
@@ -280,6 +299,7 @@ Through this practical session, I gained experience in:
 - Matplotlib
 - Regular Expressions (`re`)
 
+
 ## 10. How to Run the Notebook
 
 ### Requirements
@@ -296,7 +316,22 @@ pip install pandas numpy nltk scikit-learn matplotlib
 2. Ensure the IMDB dataset is available.
 3. Execute the notebook cells sequentially.
 
-**Note:** The original notebook uses `google.colab.files.upload()` to upload the dataset. When running locally, replace this upload mechanism with direct dataset loading:
+### NLTK Resource
+
+The notebook downloads the English stopwords corpus using:
+
+```python
+import nltk
+nltk.download("stopwords")
+```
+
+This resource is required for the word frequency exploration.
+
+### Local Execution
+
+The original notebook uses `google.colab.files.upload()` to upload the dataset.
+
+When running locally, replace this upload mechanism with direct dataset loading:
 
 ```python
 df = pd.read_csv(
