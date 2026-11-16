@@ -5,7 +5,7 @@
 **Student ID:** 10965304  
 **Laboratory:** 02  
 **Group:** Group 02 – The Distracted Student  
-**Date:** 3 October 2026
+**Date:** 03/10/2026
 
 > **Related documents:** This README contains the full FocusMate design. The group-work record is kept separately in [`group-activity/activity-outcomes.md`](group-activity/activity-outcomes.md) (what the group produced) and [`group-activity/discussion-summary.md`](group-activity/discussion-summary.md) (how the group reached its decisions).
 

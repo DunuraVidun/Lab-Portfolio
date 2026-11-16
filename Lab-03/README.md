@@ -4,7 +4,7 @@
 **Student Name:** Senarathge Senarath  
 **Student ID:** 10965304  
 **Laboratory:** 03  
-**Date:** 26/10/2026
+**Date:** 10/10/2026
 
 A character-level Transformer language model implemented from scratch using **PyTorch** and trained on a subset of the **TinyStories** dataset. The model learns next-character prediction and generates story continuations from a user-provided prompt.
   

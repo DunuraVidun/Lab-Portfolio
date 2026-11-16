@@ -97,10 +97,11 @@ acceleration reduces training time compared with relying only on a CPU
 and provides dedicated memory for model weights, activations and
 training operations.
 
-**Evidence:** [GPU and environment
-verification](screenshots/01_environment_gpu_verification.png) ·
-[Library installation and
-verification](screenshots/02_library_installation.png)
+**Evidence:**
+
+![Environment and GPU verification](screenshots/01_environment_gpu_verification.png)
+
+![Library installation and verification](screenshots/02_library_installation.png)
 
 ## 4. Tasks and Implementation
 
@@ -137,10 +138,11 @@ The dataset was split using an 80/10/10 allocation and random seed 42:
 The same five held-out test questions were used to evaluate both the
 original and fine-tuned models. They were not used as training examples.
 
-**Evidence:** [Dataset creation and
-validation](screenshots/03_dataset_creation_validation.png) · [Category
-distribution and data
-split](screenshots/04_dataset_categories_and_split.png)
+**Evidence:**
+
+![Dataset creation and validation](screenshots/03_dataset_creation_validation.png)
+
+![Dataset categories and split](screenshots/04_dataset_categories_and_split.png)
 
 ### 4.2 Pretrained model selection
 
@@ -159,8 +161,9 @@ instruction-tuned causal language model. Its recorded configuration was:
 The model was loaded using FP16 precision because the Tesla T4 GPU has
 compute capability 7.5 and does not support BF16 in this setup.
 
-**Evidence:** [Base model
-architecture](screenshots/05_base_model_architectur.png)
+**Evidence:**
+
+![Base model architecture](screenshots/05_base_model_architectur.png)
 
 ### 4.3 Original model baseline
 
@@ -173,8 +176,9 @@ information rather than the dataset's LKR price.
 
 This baseline provides a point of comparison for the fine-tuned model.
 
-**Evidence:** [Original model baseline
-responses](screenshots/06_original_model_baseline.png)
+**Evidence:**
+
+![Original model baseline responses](screenshots/06_original_model_baseline.png)
 
 ### 4.4 LoRA configuration using PEFT
 
@@ -226,9 +230,11 @@ approach without requiring four-bit model quantization. QLoRA
 remains a possible alternative for larger models or more
 memory-constrained environments.
 
-**Evidence:** [LoRA
-configuration](screenshots/07_lora_configuration.png) · [Trainable
-parameter analysis](screenshots/08_trainable_parameter_analysis.png)
+**Evidence:**
+
+![LoRA configuration](screenshots/07_lora_configuration.png)
+
+![Trainable parameter analysis](screenshots/08_trainable_parameter_analysis.png)
 
 ### 4.5 Supervised fine-tuning with TRL
 
@@ -273,10 +279,13 @@ trends indicate that the training process learned from the training data
 during this run; they do not, by themselves, establish that the model
 will answer every unseen question correctly.
 
-**Evidence:** [SFT training
-configuration](screenshots/09a_sft_training_configuration.png) · [SFT
-training results](screenshots/09b_sft_training_results.png) · [Training
-and validation loss](screenshots/10_training_validation_loss.png)
+**Evidence:**
+
+![SFT training configuration](screenshots/09a_sft_training_configuration.png)
+
+![SFT training results](screenshots/09b_sft_training_results.png)
+
+![Training and validation loss graph](screenshots/10_training_validation_loss.png)
 
 ### 4.6 Saving the fine-tuned adapter
 
@@ -331,8 +340,9 @@ The comparison therefore shows a mixed result: the fine-tuned model
 produced more domain-related wording, but it did not consistently learn
 the factual details of the fictional business.
 
-**Evidence:** [Original versus fine-tuned model
-comparison](screenshots/11_original_vs_finetuned_comparison.png)
+**Evidence:**
+
+![Original versus fine-tuned model comparison](screenshots/11_original_vs_finetuned_comparison.png)
 
 ### 5.2 Quantitative evaluation
 
@@ -359,8 +369,9 @@ The metric results should be interpreted cautiously because the test set
 contains only five examples. Each response has a substantial effect on
 the aggregate score.
 
-**Evidence:** [Quantitative
-evaluation](screenshots/12_quantitative_evaluation.png)
+**Evidence:**
+
+![Quantitative evaluation](screenshots/12_quantitative_evaluation.png)
 
 ### 5.3 Manual evaluation
 
@@ -403,8 +414,9 @@ The notebook's manual review recorded the following judgements:
 The manual evaluation is important because the automatic metrics do not
 establish whether the generated answer follows the business policy.
 
-**Evidence:** [Manual evaluation and
-limitations](screenshots/13_manual_evaluation_and_limitations.png)
+**Evidence:**
+
+![Manual evaluation and limitations](screenshots/13_manual_evaluation_and_limitations.png)
 
 ## 6. Observations, Challenges and Limitations
 
