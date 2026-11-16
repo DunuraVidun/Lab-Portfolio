@@ -6,7 +6,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # pyrefly: ignore[missing-import]
 from sentence_transformers import CrossEncoder
 
-from ingest import get_vectorstore
+from src.ingest import get_vectorstore
 
 llm = ChatOllama(
     model="llama3.2:3b",

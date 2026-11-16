@@ -1,333 +1,378 @@
-# University AI Assistant - Retrieval-Augmented Generation (RAG)
+# Lab 05 – Retrieval-Augmented Generation (RAG) Pipeline
 
-An academic practical for **PUSL 3205 - Large Language Models and Generative AI**. This project provides a Streamlit interface for indexing university PDFs and asking questions against their extracted content using a local Ollama LLM, Chroma vector search, and a CrossEncoder reranker.
+**Module:** PUSL3205 – Large Language Models and Generative AI  
+**Student Name:** Senarathge Senarath  
+**Student ID:** 10965304  
+**Laboratory:** 05 – RAG Architecture  
+**Date:** 31/10/2026  
 
-## Project Overview
+---
 
-The application lets a user upload one or more university PDF documents, process them into a persistent knowledge base, and ask questions in natural language. Retrieved passages are supplied to a language model as context so that answers can be based on the indexed documents rather than on the model alone.
+## 1. Laboratory Session
 
-This approach is useful for finding information spread across handbooks, programme documents, and other university PDFs. It does not guarantee that an answer is correct: results depend on the PDF's extractable text, retrieval and reranking, and the LLM's response. The system prompt instructs the model to say when the context does not contain an answer and to cite the supplied source labels.
+**Project: University AI Assistant**
 
-The Streamlit interface displays the answer and a separate list of the selected document names and pages. Conversation messages are kept in Streamlit session state for display, but previous turns are not passed into the LLM when a new question is answered.
+This individual practical implements a document-based University AI Assistant using Retrieval-Augmented Generation (RAG). Users can upload university PDF documents, index their content in a local vector database, and ask questions through a Streamlit interface. The application retrieves relevant passages from the indexed documents and provides them to a local language model to generate an answer.
 
-## Learning Objectives
+## 2. Objective
 
-This implementation demonstrates:
+The objective is to understand and implement the main stages of a RAG system and connect a locally running LLM to an external document collection.
 
-- **LLMs and local inference:** generating answers with the `llama3.2:3b` model through Ollama.
-- **Retrieval-Augmented Generation:** supplying retrieved university-document passages to the LLM for a question.
-- **Text extraction and document chunking:** loading PDF pages and splitting their text into smaller, overlapping passages.
-- **Text embeddings and semantic search:** embedding document chunks and user questions for vector similarity retrieval.
-- **Vector databases and information retrieval:** persisting chunks in Chroma and retrieving an initial set of relevant candidates.
-- **Reranking:** using a CrossEncoder to score the retrieved query-passage pairs and select the best-ranked passages.
-- **Prompt construction:** combining document/page labels and passage text with instructions that constrain the answer to retrieved context.
-- **Interactive AI applications:** using Streamlit for PDF upload, document status, question input, answers, and sources.
+The practical objectives are to:
 
-## Technologies and Libraries
+- Load PDF documents and extract their text.
+- Split extracted text into manageable, overlapping chunks.
+- Generate embeddings and store them in ChromaDB.
+- Retrieve passages relevant to a user's question.
+- Rerank retrieved passages using a CrossEncoder.
+- Generate answers using a local LLM and retrieved document context.
+- Build a Streamlit interface that supports PDF uploads, question answering and source display.
 
-The table focuses on libraries and models directly used by the source code. `requirements.txt` pins package versions; it is a dependency list, not a declaration of a supported Python version.
+## 3. Project Overview and Architecture
 
-| Technology / Library | Purpose in the Project |
+The application has two main workflows:
+
+1. **Document ingestion:** validate the uploaded PDF, check for duplicates, extract text, split it into chunks, generate embeddings and store the chunks and metadata in ChromaDB.
+2. **Question answering:** retrieve candidate chunks, rerank them, construct a context containing source information, generate an answer with the LLM and display the answer and source details.
+
+### 3.1 Main technologies
+
+| Technology / model | Purpose |
 |---|---|
-| Python | Implements document ingestion, retrieval, generation, and the command-line question loop. |
-| Streamlit | Provides the upload, document listing, chat input, conversation display, and source display. |
-| LangChain Community `PyMuPDFLoader` | Loads PDF pages and extracts their text and page metadata. |
-| `langchain-core` | Supplies `SystemMessage` and `HumanMessage` used to send the prompt to the chat model. |
-| `langchain-text-splitters` | Provides `RecursiveCharacterTextSplitter` for chunking extracted pages. |
-| `langchain-ollama` | Connects to Ollama for `OllamaEmbeddings` and `ChatOllama`. |
-| `langchain-chroma` and ChromaDB | Store and retrieve chunk text, metadata, and embeddings in a persistent local vector store. |
-| PyMuPDF | PDF parsing backend used by `PyMuPDFLoader`. |
-| Sentence Transformers | Loads and runs the CrossEncoder reranker. |
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` | Scores each retrieved question-passage pair for reranking. |
-| Ollama | Runs the configured embedding model and chat LLM locally. |
-| `qwen3-embedding:0.6b` | Creates embeddings used by Chroma for document indexing and query search. |
-| `llama3.2:3b` | Generates the final answer from the question and retrieved context. |
+| Python | Main programming language |
+| LangChain | Connects document loading, splitting, embeddings, vector storage and LLM components |
+| PyMuPDF / `PyMuPDFLoader` | Extracts PDF text and page metadata |
+| Ollama | Runs the local chat and embedding models |
+| `qwen3-embedding:0.6b` | Generates vector embeddings |
+| ChromaDB | Stores document chunks, embeddings and metadata persistently |
+| `llama3.2:3b` | Generates answers from retrieved context |
+| Sentence Transformers CrossEncoder | Reranks retrieved question–passage pairs |
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` | CrossEncoder model used for relevance scoring |
+| Streamlit | Provides the document-upload and chat interface |
 
-The CrossEncoder is a Hugging Face/Sentence Transformers model, not an Ollama model. It is initialized by `rag_pipeline.py` when that module is imported.
+The embedding model and chat model run through Ollama. The CrossEncoder is loaded separately through Sentence Transformers.
 
-## System Architecture
-
-### A. Document ingestion workflow
+### 3.2 RAG workflow
 
 ```mermaid
 flowchart TD
-    A[Select PDF files in Streamlit] --> B[Click Process Documents]
-    B --> C[Read uploaded bytes]
-    C --> D{Starts with PDF signature?}
-    D -- No --> E[Raise validation error]
-    D -- Yes --> F[SHA-256 hash and sanitize filename]
-    F --> G[Initialize Chroma with Ollama embeddings]
-    G --> H{Hash already indexed?}
-    H -- Yes --> I[Report already indexed]
-    H -- No --> J[Save hash-prefixed PDF in data]
-    J --> K[PyMuPDFLoader extracts page documents]
-    K --> L[Recursive splitter: 1000 characters, 150 overlap]
-    L --> M{Any chunks?}
-    M -- No --> N[Raise no extractable text error]
-    M -- Yes --> O[Add file and source metadata; assign stable chunk IDs]
-    O --> P[Embed chunks and add to persistent Chroma collection]
-    E --> Q[Show per-file error in Streamlit]
-    N --> Q
-    P --> R[Show ingestion success and chunk count]
-    I --> S[Show already-indexed message]
+    A[University PDF files] --> B[PDF validation and text extraction]
+    B --> C[Split text into chunks]
+    C --> D[Qwen3 embedding model]
+    D --> E[(ChromaDB vector store)]
+
+    F[User question] --> G[Vector similarity search]
+    E --> G
+    G --> H[Retrieve up to 10 candidate chunks]
+    H --> I[CrossEncoder reranking]
+    I --> J[Select top 3 chunks]
+    J --> K[Build context with document and page details]
+    K --> L[Llama 3.2 3B]
+    F --> L
+    L --> M[Answer and source details]
+    M --> N[Streamlit interface]
 ```
 
-### B. Question-answering workflow
+### 3.3 Main implementation settings
 
-```mermaid
-flowchart TD
-    A[User submits question in Streamlit] --> B[ask_university]
-    B --> C[Open persistent Chroma vector store]
-    C --> D[Similarity search: top 10 chunks]
-    D --> E{Any chunks retrieved?}
-    E -- No --> F[Return no-documents answer and no sources]
-    E -- Yes --> G[Create question-passage pairs]
-    G --> H[CrossEncoder predicts relevance scores]
-    H --> I[Sort by score and keep top 3]
-    I --> J[Build labeled context and document/page source list]
-    J --> K[Send system and human messages to ChatOllama]
-    K --> L[llama3.2:3b generates answer]
-    F --> M[Display answer in Streamlit]
-    L --> M
-    M --> N[Display retrieved document names and pages]
-    M --> O[Save messages in Streamlit session state]
+| Component | Configuration |
+|---|---|
+| Text splitter | `RecursiveCharacterTextSplitter` |
+| Chunk size | 1,000 characters |
+| Chunk overlap | 150 characters |
+| Embedding model | `qwen3-embedding:0.6b` |
+| ChromaDB collection | `university_knowledge` |
+| Initial vector retrieval | Top 10 chunks |
+| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+| Context passed to LLM | Top 3 reranked chunks |
+| Answer model | `llama3.2:3b` |
+| LLM temperature | `0` |
+
+## 4. Tasks and Implementation
+
+### 4.1 PDF ingestion, validation and chunking
+
+The Streamlit uploader accepts multiple PDF files. When **Process Documents** is selected, `app.py` calls `ingest_pdf()` from `ingest.py`.
+
+The ingestion process validates the PDF signature, calculates a SHA-256 hash, checks for duplicate content, saves a new PDF, extracts its page text, splits the text into chunks, attaches metadata and stores the chunks in ChromaDB.
+
+The text-splitting configuration is:
+
+```python
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=150
+)
+
+chunks = splitter.split_documents(documents)
 ```
 
-The Chroma similarity search is the first-stage vector retrieval. CrossEncoder scores are then used to reorder only those candidates; reranking does not search the entire document collection.
+The file hash, filename and source filename are attached to chunk metadata. Stable chunk IDs are generated using the file hash and chunk index. If ingestion fails, the code attempts to remove partially indexed chunks and the saved PDF.
 
-## Project Structure
+### 4.2 Embeddings and vector storage
 
-The inspected Lab-05 directory contains these project files:
+`get_vectorstore()` configures the Ollama embedding model and persistent ChromaDB collection:
+
+```python
+embeddings = OllamaEmbeddings(
+    model="qwen3-embedding:0.6b"
+)
+
+return Chroma(
+    collection_name="university_knowledge",
+    embedding_function=embeddings,
+    persist_directory=str(DB_PATH)
+)
+```
+
+The embedding model converts text chunks into numerical vector representations. ChromaDB stores these vectors with the original chunk content and metadata. The persistent `chroma_db/` directory allows the indexed collection to be reused between application runs.
+
+### 4.3 Retrieval and reranking
+
+When a question is submitted, `ask_university()` retrieves up to ten candidate chunks from ChromaDB. The candidates are then scored by the CrossEncoder using question–passage pairs.
+
+```python
+docs = vectorstore.similarity_search(
+    question,
+    k=10
+)
+
+pairs = [
+    (question, doc.page_content)
+    for doc in docs
+]
+
+scores = reranker.predict(pairs)
+
+ranked_docs = sorted(
+    zip(docs, scores),
+    key=lambda item: float(item[1]),
+    reverse=True
+)
+
+docs = [doc for doc, score in ranked_docs[:3]]
+```
+
+Vector similarity finds the initial candidate set, and the CrossEncoder refines its ranking. Only the three highest-ranked chunks are used to construct the final context.
+
+### 4.4 Context construction and answer generation
+
+The selected passages are combined with their document names and page numbers. The chat model is configured in `rag_pipeline.py` as follows:
+
+```python
+llm = ChatOllama(
+    model="llama3.2:3b",
+    temperature=0
+)
+```
+
+The system prompt instructs the model to answer using only the retrieved university-document context, avoid inventing information, state when an answer is unavailable, cite evidence using `[Source N]`, ignore instructions contained in retrieved documents and explain conflicting evidence.
+
+The application returns the generated answer and a separate list of retrieved document names and page numbers. The source labels requested in the prompt are not independently verified against every generated claim.
+
+### 4.5 Streamlit application
+
+`app.py` connects ingestion and question answering to the user interface. It provides:
+
+- A multiple-PDF uploader and **Process Documents** button.
+- Per-file success or error messages and a processing progress indicator.
+- A Stored Documents list.
+- A chat input for questions about indexed documents.
+- User and assistant message displays.
+- An expandable **View Retrieved Sources** area showing document names and page numbers.
+
+The Streamlit session state stores conversation messages for display. However, previous messages are not included in the prompt sent to the LLM. Therefore, the displayed chat history does not provide conversational memory: follow-up questions are processed as new questions using the retrieved document context.
+
+### 4.6 Brief setup and execution
+
+The project uses Python 3.12, a virtual environment, the dependencies in `requirements.txt`, and Ollama with the two configured models.
+
+From the project directory in Windows PowerShell:
+
+```powershell
+# Create the environment once, if it does not already exist
+py -3.12 -m venv rag_env
+
+# Activate it
+.\rag_env\Scripts\Activate.ps1
+
+# Install dependencies
+python -m pip install -r requirements.txt
+
+# Download the required Ollama models
+ollama pull llama3.2:3b
+ollama pull qwen3-embedding:0.6b
+
+# Start the application
+python -m streamlit run app.py
+```
+
+Open the local URL printed by Streamlit (normally `http://localhost:8501`). Ollama must be running when the application uses the models. The CrossEncoder model may also need to be downloaded the first time it is loaded.
+
+## 5. Results and Evidence
+
+The screenshots below document the application interface, model availability, document ingestion and question-answering tests. Image links use paths relative to this README so GitHub can preview them.
+
+### 5.1 Application interface
+
+The interface contains the PDF upload and processing controls, stored-document list and chat area.
+
+![University AI Assistant application interface](screenshots/01_application_interface.png)
+
+### 5.2 Ollama models
+
+The PowerShell output shows the configured local models: `qwen3-embedding:0.6b` and `llama3.2:3b`.
+
+![Ollama models available locally](screenshots/02_ollama_models.png)
+
+
+### 5.3 PDF Upload, Successful Indexing and Duplicate Detection
+
+**Successful document indexing**
+
+A new university PDF document, `Business_Management_Degrees_at_NSBM_Green_University.pdf`, was uploaded and processed successfully. The application confirmed successful indexing and generated **9 document chunks**, which were stored in the ChromaDB vector database.
+
+![Successful PDF indexing with chunk count](screenshots/06_successful_indexing.png)
+
+**Duplicate document detection**
+
+After indexing, the application was tested with a previously indexed PDF. The duplicate-file detection mechanism recognised the existing document and displayed the **Already indexed** message, preventing the same document from being indexed again.
+
+![PDF upload and duplicate detection](screenshots/03_document_ingestion.png)
+
+
+### 5.4 Question answering – available modules
+
+The question asks: **“What are the available modules in computer science degree program?”** The application returns a response based on retrieved university-document content.
+
+![Question answering – available modules](screenshots/04a_question_answering.png)
+
+### 5.5 Question answering – programme description
+
+The question asks: **“What is computer science degree program?”** The application returns a programme description with a source label.
+
+![Question answering – programme description](screenshots/04b_question_answering.png)
+
+### 5.6 Out-of-scope question
+
+The following question was used to test whether the assistant would avoid answering a question that was not covered by the indexed handbook:
+
+**Question:** “What is the content of Business Management degree program?”
+
+The assistant stated that the content of a separate Business Management degree programme was not explicitly available in the retrieved documents. It clarified that the handbook contained information about the **BSc in Management Information Systems (Special)**, an interdisciplinary programme combining computing and business, but did not describe a separate Business Management degree programme. The assistant therefore identified the requested information as unavailable based on the retrieved documents.
+
+![Out-of-scope question test](screenshots/05_out_of_the_box_qs.png)
+
+In this test, the assistant followed the prompt's abstention instruction rather than generating an unsupported answer from general knowledge. This is one successful qualitative example; it does not guarantee correct abstention for every unsupported question.
+
+### 5.7 Retrieved Source Details
+
+The application provides an expandable **View Retrieved Sources** section below each generated answer. When expanded, it displays the source document filename and the corresponding page numbers of the retrieved passages.
+
+In this test, the application retrieved three relevant passages from the NSBM Computing Awards Handbook, with source references pointing to pages 12, 15 and 9.
+
+This feature improves transparency by allowing users to identify the documents and pages used to generate an answer.
+
+![Retrieved sources expanded](screenshots/07_retrieved_sources_expanded.png)
+
+
+## 6. Observations, Challenges and Limitations
+
+### 6.1 Observations from testing
+
+The main source document used for testing was the **NSBM Faculty of Computing – UGC Computing Awards Handbook** (`COMPUTING AWARD HANDBOOK_MOHE (2).pdf`). It includes programme descriptions and curriculum tables for several computing degrees, including the BSc (Honours) in Computer Science. The handbook was uploaded through the application and was not copied into this repository.
+
+- **Programme-description question:** For the question “what is computer science degree program?”, the assistant returned a summary describing the programme's computing foundation, its alignment with ACM and IEEE guidelines, the compulsory third-year industry training and the fourth-year individual award project. These points are consistent with the programme overview in the handbook.
+- **Module-list question:** For “What are the available modules in computer science degree program?”, the assistant listed ten Year 1 modules. However, the handbook contains curriculum tables for Years 1–4. Therefore, the response was relevant but incomplete for a question asking for all available modules. It did not provide the full programme curriculum.
+- **Out-of-scope question:** When asked about the content of a separate Business Management degree programme, the assistant said that this information was unavailable in the retrieved documents. This indicates that the abstention instruction worked for this particular test.
+- **Source display:** The interface provides a **View Retrieved Sources** expander and the answer in the programme-description screenshot includes a `[Source 1]` label. The expanded View Retrieved Sources section displayed three retrieved passages from the NSBM Computing Awards Handbook, referencing pages 12, 15 and 9. This allowed the retrieved information to be traced back to the original document.
+- **Document list:** The application displayed three stored PDF entries, including the Business Management degree document and the Computing Awards Handbook. The filenames include hash-prefixed entries, demonstrating how uploaded documents are stored and identified.
+- **Response time:** The screenshots do not record query duration, so no reliable conclusion about first-query or later-query speed is reported.
+
+These tests show that the assistant can retrieve and summarise relevant programme information and can abstain for at least one unsupported question. They also reveal that a relevant answer is not necessarily a complete answer: the module-list response should be improved to cover all four years or clearly state that it is showing only Year 1.
+
+
+### 6.2 Practical Challenges Encountered
+
+During the implementation, several practical challenges were encountered while transferring the project into the GitHub portfolio and configuring its development environment.
+
+**1. Project Structure and File Organization**
+
+Initially, the original Lab Sheet 05 project and the Lab-Portfolio repository were maintained in separate directories. Organizing the source files while keeping the original virtual environment separate caused some confusion.
+
+**Resolution:** Created a dedicated `Lab-05` directory within the portfolio to organize the Python files, `requirements.txt`, and README. A `.gitignore` file was also configured to exclude virtual environments and unnecessary generated files.
+
+**2. Virtual Environment and Dependency Management**
+
+The original `rag_env` environment was not included when transferring the project. Additionally, errors such as `ModuleNotFoundError: No module named 'langchain_community'` occurred because the required packages were not installed in the Python environment being used.
+
+**Resolution:** Configured a separate virtual environment for the portfolio project, installed the required dependencies, and activated the correct environment before running the application.
+
+**3. Requirements File Path Error**
+
+Running `pip install -r requirements.txt` from the portfolio root directory resulted in a file-not-found error because the requirements file was located inside the `Lab-05` subdirectory.
+
+**Resolution:** Navigated to the correct project directory before installing dependencies. The application was subsequently launched using `python -m streamlit run app.py` to ensure it used the active Python environment.
+
+These challenges provided practical experience in project organization, Python environment management, dependency installation, and Git version control. They also highlighted the importance of maintaining a consistent development environment when transferring projects between directories and repositories.
+
+
+### 6.3 Technical limitations
+
+- **PDF extraction:** The current implementation uses PyMuPDF text extraction and does not include OCR. Scanned or image-only PDF pages may not produce usable text.
+- **Retrieval coverage:** The CrossEncoder only reranks the ten candidates returned by the initial vector search. Relevant passages outside that candidate set cannot be selected.
+- **Limited context:** Only the three highest-ranked chunks are passed to the LLM. Information distributed across more passages may be missed.
+- **No conversational memory:** Streamlit displays previous messages, but the RAG function receives only the current question. Follow-up questions therefore do not automatically inherit earlier conversational context.
+- **Citation verification:** The prompt requests source labels, but the code does not programmatically check whether each citation supports the associated statement.
+- **Answer reliability:** Prompt instructions and retrieved context can reduce unsupported responses but cannot guarantee that every generated statement is correct.
+- **Evaluation scope:** The screenshots provide qualitative examples. The submitted implementation does not include a labelled evaluation dataset or measured retrieval accuracy, answer-quality scores or latency benchmarks.
+
+### 6.4 Possible future improvements
+
+1. Add OCR support for scanned PDFs.
+2. Investigate hybrid retrieval using dense vectors and BM25 keyword search.
+3. Explore section-aware or parent-child chunking for long academic documents.
+4. Add conversational context and evidence-verification checks, then evaluate their effect on answer reliability.
+
+These are proposed improvements and are not claimed as implemented features in this version.
+
+## 7. Learning Outcomes
+
+By completing this individual practical, I developed practical understanding of:
+
+- The stages of a Retrieval-Augmented Generation architecture.
+- Extracting PDF text and preserving page metadata.
+- Splitting documents into overlapping chunks.
+- Generating embeddings using a locally hosted embedding model.
+- Storing and retrieving document vectors using ChromaDB.
+- Applying semantic similarity search and CrossEncoder reranking.
+- Constructing prompts that provide retrieved evidence to an LLM.
+- Running local LLMs through Ollama.
+- Integrating document ingestion and question answering into a Streamlit application.
+- Identifying practical issues involving Python environments, dependencies, retrieval coverage, source traceability and answer reliability.
+
+## 8. Project Structure
 
 ```text
-Lab-05/
+Lab-05-RAG-Pipeline/
+│
 ├── README.md
 ├── app.py
 ├── ingest.py
 ├── rag_pipeline.py
-└── requirements.txt
+├── requirements.txt
+│
+└── screenshots/
+    ├── 01_application_interface.png
+    ├── 02_ollama_models.png
+    ├── 03_document_ingestion.png
+    ├── 04a_question_answering.png
+    ├── 04b_question_answering.png
+    ├── 05_out_of_the_box_qs.png
+    ├── 06_successful_indexing.png          
+    └── 07_retrieved_sources_expanded.png   
 ```
 
-| File | Purpose |
-|---|---|
-| `app.py` | Streamlit user interface; calls the ingestion and question-answering functions. |
-| `ingest.py` | PDF validation, naming and hashing, text extraction, chunking, metadata, Chroma setup, and document listing. |
-| `rag_pipeline.py` | Initializes the chat model and reranker; retrieves, reranks, constructs context, generates answers, and provides a command-line question loop. |
-| `requirements.txt` | Pinned Python package dependencies. |
-| `README.md` | Project documentation. |
+At runtime, the application creates or uses `data/` for uploaded PDFs and `chroma_db/` for persistent ChromaDB data. These generated directories do not need to be committed if the knowledge base can be rebuilt by uploading and processing the PDFs again.
 
-At runtime, the code uses `data/` for uploaded PDFs and `chroma_db/` for persistent Chroma data. These are generated local data locations, not source files in the inspected project tree; do not commit private university PDFs or generated database files.
-
-## Implementation Details
-
-### A. Document Upload and Ingestion
-
-1. `app.py` accepts multiple files through `st.file_uploader` with a PDF extension filter. Processing starts only when the user clicks **Process Documents**.
-2. `ingest_pdf` reads the uploaded bytes and checks that they begin with the `%PDF-` signature. This is a basic signature check, not comprehensive PDF validation.
-3. It computes a SHA-256 hash of the complete file bytes. The original basename is sanitized by replacing characters outside letters, digits, `.`, `_`, and `-` with underscores. The stored name is `<first 12 hash characters>_<sanitized filename>`.
-4. The function initializes the vector store and searches its metadata for the complete `file_hash`. If a matching chunk exists, it reports that the PDF is already indexed and does not save another copy.
-5. Otherwise, the PDF is written under `Lab-05/data/`. `PyMuPDFLoader` extracts page documents, and the splitter creates chunks from those documents.
-6. Each chunk retains loader metadata and receives `file_hash`, the sanitized original `filename`, and `source` (the hash-prefixed stored name). Stable IDs use the full hash and chunk index: `<file_hash>_<index>`.
-7. Chunks and IDs are added to Chroma. If an exception occurs during the guarded extraction/indexing steps, the code attempts to delete chunks carrying that hash, removes the saved PDF, and re-raises the error. The Streamlit UI reports errors per uploaded file.
-
-The Streamlit upload filter checks the file extension; the byte-signature check is performed in the ingestion function. The code does not impose a file-size limit or run OCR. `list_documents()` lists PDF files currently in `data/`; it does not verify that each listed file has corresponding indexed chunks. There is no UI feature for deleting or re-indexing documents.
-
-`ingest_pdf_from_path(file_path)` is also available as a Python helper. It reads a local file into memory and passes it through the same ingestion function; it is not a standalone command-line interface.
-
-### B. Text Chunking
-
-The implementation uses `RecursiveCharacterTextSplitter` with:
-
-- `chunk_size=1000`
-- `chunk_overlap=150`
-
-The splitter operates on page documents from `PyMuPDFLoader`. Splitting each page document preserves its metadata, including the page metadata later used for source display. Overlap carries some boundary text into the next chunk, which can help retain context when a relevant passage crosses a chunk boundary. These values are fixed in the source; there is no configuration UI.
-
-### C. Embedding Generation
-
-`get_vectorstore()` configures `OllamaEmbeddings(model="qwen3-embedding:0.6b")`. LangChain uses this embedding function when chunks are added and when Chroma performs a similarity search for a question.
-
-An embedding is a numerical representation of text. Vector search compares the question representation with stored chunk representations to find semantically similar candidates; it does not guarantee that a candidate contains the answer. The embedding model is an Ollama model and must be available to the Ollama service. The source does not configure additional embedding parameters.
-
-### D. Vector Database
-
-`ingest.py` initializes LangChain's `Chroma` wrapper with:
-
-- Collection name: `university_knowledge`
-- Persistence directory: `Lab-05/chroma_db`
-- Embedding function: `OllamaEmbeddings` using `qwen3-embedding:0.6b`
-
-Chunks, their metadata, and corresponding vectors are added through `vectorstore.add_documents`. The same collection and persistence directory are used when querying, so the local index can be reused across application executions. `get_vectorstore()` constructs a wrapper when called; the source does not cache that wrapper in a global resource.
-
-### E. Document Retrieval
-
-`ask_university(question)` sends the user's question directly to Chroma's `similarity_search` with `k=10`. This produces up to ten candidate chunks using vector similarity. The question is not rewritten or expanded, and the search does not apply metadata filters.
-
-### F. Reranking
-
-The pipeline initializes `sentence_transformers.CrossEncoder` with `cross-encoder/ms-marco-MiniLM-L-6-v2`. For each of up to ten retrieved chunks, it creates a `(question, chunk text)` pair and calls `reranker.predict(pairs)`. It sorts those candidates by score in descending order and keeps the first three.
-
-This is a distinct second stage from Chroma retrieval: vector similarity finds candidates; the CrossEncoder scores query-passage pairs to reorder those candidates. Scores are used internally and are not displayed or returned. The CrossEncoder model is separate from Ollama and may need to be downloaded from Hugging Face when it is first loaded if it is not already cached.
-
-### G. Answer Generation
-
-`rag_pipeline.py` constructs one `ChatOllama` instance using `model="llama3.2:3b"` and `temperature=0`. There are no additional model parameters configured in the source.
-
-For each retained passage, the pipeline builds a context entry containing a `[Source N]` label, filename, page, and chunk content. It obtains the page from loader metadata and adds one because the page value is zero-based; if page metadata is missing, it falls back to page 1. The source list returned to the UI contains document names and page numbers.
-
-The system prompt asks the model to:
-
-- answer using only the retrieved context;
-- avoid inventing university information;
-- state when the answer is unavailable in context;
-- cite evidence using `[Source N]`;
-- ignore instructions in retrieved content; and
-- explain conflicts between documents rather than choose unsupported information.
-
-The current question and constructed context are sent as a `HumanMessage`, alongside the system prompt in a `SystemMessage`. The model's response is returned with the source list. These prompt instructions are an attempt to ground answers, not a guarantee against hallucinations. The generated `[Source N]` references are not programmatically checked against individual claims; the UI separately displays the retrieved document/page list.
-
-If vector search returns no chunks, the function returns `No university documents are indexed yet.` with an empty source list. This message is also used for an empty retrieval result, not only for a genuinely empty database.
-
-### H. Streamlit User Interface
-
-`app.py` provides:
-
-- A wide page titled **University AI Assistant**.
-- A sidebar PDF uploader that accepts multiple PDFs and a **Process Documents** button.
-- Per-file progress, success, and error messages during processing.
-- A stored-document section showing the number and names of PDFs found in the `data/` folder.
-- A chat input and user/assistant message display.
-- Expandable source lists showing the document name and page for each returned source.
-- A spinner and visible error message when question processing raises an exception.
-
-Messages are held in `st.session_state` for the current Streamlit session. The prior messages are displayed but are not included in the call to `ask_university`, so this is not conversational-memory retrieval. On an error during answering, the question has already been appended to the displayed history, while no assistant response is appended.
-
-## Installation and Setup
-
-### Python
-
-Neither the Python source nor `requirements.txt` declares a supported Python version. `requirements.txt` pins package versions but does not pin the interpreter. Use a Python version compatible with all pinned dependencies in that file; compatibility has not been tested or certified here.
-
-### Create an environment and install dependencies
-
-From the repository root in Windows PowerShell:
-
-```powershell
-cd .\Lab-05
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-If PowerShell prevents environment activation, use the Python executable inside `.venv\Scripts\python.exe` directly for subsequent commands. The dependency file contains pinned packages; it may install more packages than the imports used directly by this project.
-
-### Install Ollama and obtain the Ollama models
-
-Install Ollama separately using its official installer, then ensure its local service is running. The application does not start or install Ollama itself. If the service is not already running, start it in a separate terminal with:
-
-```powershell
-ollama serve
-```
-
-In another terminal, pull the two model names configured in the source:
-
-```powershell
-ollama pull llama3.2:3b
-ollama pull qwen3-embedding:0.6b
-ollama list
-```
-
-The CrossEncoder is not pulled through Ollama. On first import, Sentence Transformers loads `cross-encoder/ms-marco-MiniLM-L-6-v2`; if it is not cached, the environment needs access to Hugging Face to download it.
-
-## How to Run the Application
-
-1. Start Ollama (or verify that its service is already running) and confirm both Ollama models are available with `ollama list`.
-2. Activate the virtual environment and change to the Lab-05 directory:
-
-   ```powershell
-   cd .\Lab-05
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-3. Launch the Streamlit interface:
-
-   ```powershell
-   python -m streamlit run app.py
-   ```
-
-4. Open the local URL printed by Streamlit in the terminal (normally `http://localhost:8501`).
-5. Upload university PDFs in the sidebar and click **Process Documents**. The UI reports whether each file was indexed or already present.
-6. Enter a question in the chat input. The answer and expandable retrieved-source list appear in the chat.
-
-### Optional command-line question interface
-
-`rag_pipeline.py` also has a command-line loop. From the Lab-05 directory, with dependencies, models, Ollama, and an indexed Chroma collection available, run:
-
-```powershell
-python rag_pipeline.py
-```
-
-Enter a question at the prompt; enter `exit` to stop. This runs the question-answering pipeline, not the Streamlit application, and it does not provide a command-line PDF ingestion flow.
-
-## Example Usage
-
-After indexing relevant documents, users could ask:
-
-- What degree programmes are described in the uploaded documents?
-- What subjects are listed for the Computer Science degree?
-- What admission requirements are stated?
-- Which modules are available in this programme?
-- What programme learning outcomes are provided?
-
-The expected output is a generated answer followed by an expandable list of retrieved document names and page numbers. The README does not prescribe or invent answers; the actual response depends on the uploaded PDFs and retrieval results. Accuracy may be affected by PDF text extraction, chunk boundaries, embedding similarity, reranking, and LLM generation.
-
-## Screenshots
-
-### Application Interface
-
-<!-- Add application screenshot here -->
-
-### PDF Upload
-
-<!-- Add PDF upload screenshot here -->
-
-### Question and Answer
-
-<!-- Add question-answer screenshot here -->
-
-## Challenges and Technical Considerations
-
-The following are observable constraints of this implementation, not claims about development history:
-
-- **PDF text availability:** the application uses text extraction and has no OCR step. Image-only or scanned PDFs may produce no chunks and fail ingestion.
-- **Basic validation:** the code checks the PDF signature after Streamlit's extension filter; it does not validate file size or comprehensively verify that a file is a well-formed PDF.
-- **Exact-byte duplicate detection:** duplicate checks use the SHA-256 of the uploaded bytes stored in Chroma metadata. Identical bytes are detected, while a changed PDF file (even if its visible text is unchanged) has a different hash.
-- **Persistent local state:** PDFs and Chroma data are stored under the Lab-05 directory. The UI's document list reads the PDF folder, while duplicate detection reads the vector store; these can become inconsistent if local files are manually changed.
-- **Retrieval limits:** only ten vector-search candidates are reranked, and only the top three are passed to the LLM. Relevant content outside those candidates cannot inform the response.
-- **Reranker resources:** the CrossEncoder is initialized when the pipeline module loads and requires its model files and inference resources. Its download and runtime requirements are separate from Ollama.
-- **Answer verification:** prompt instructions encourage grounded answers and source labels, but the code does not evaluate answer correctness or verify that each citation supports its associated claim.
-- **No conversational context in generation:** displayed chat history is not fed into later questions.
-
-## Key Learnings
-
-The code provides practical experience with a baseline document RAG workflow: extracting and chunking PDF text, generating and persisting embeddings, retrieving semantically similar chunks, reranking candidates, constructing a context-grounded prompt, and generating an answer with a locally served LLM. It also demonstrates how to connect these components to a Streamlit interface and expose retrieved document/page metadata to users.
-
-## Future Improvements
-
-These are proposed enhancements and are **not implemented** in the inspected source:
-
-- Add OCR support for scanned PDFs and more thorough PDF validation.
-- Make chunking and retrieval settings configurable and evaluate alternatives against representative questions.
-- Add hybrid retrieval (for example, BM25 plus vector search), query expansion, or metadata-based filters.
-- Add retrieval and answer-quality evaluation, evidence checks, and validation of generated source citations.
-- Provide document deletion, re-indexing, and clearer reconciliation between saved PDFs and indexed chunks.
-- Add multilingual retrieval if the university content requires it.
-- Include selected conversation history in follow-up questions if conversational memory is desired.
-- Improve upload limits, progress reporting, and resilience around file and vector-store failures.
-
-Advanced RAG activities described in the lecturer's group assignment are separate from this baseline Lab-05 implementation; they should not be treated as completed features of this project.
-
-## Implementation Scope and Verification Notes
-
-This README was written from the files present in the Lab-05 directory: `app.py`, `ingest.py`, `rag_pipeline.py`, and `requirements.txt`. No separate configuration files, test files, or lecturer assignment handout were present in that directory. Therefore, a direct comparison with the lecturer's full instructions, beyond the assignment context supplied for this documentation, could not be verified. No performance metrics, evaluation results, or screenshots are included because none were found in the inspected project files.
+The NSBM Computing Awards Handbook used for testing is not included in this repository. If the repository is public, keep university-provided documents and other materials that are not intended for public redistribution out of version control. Upload the handbook locally through the application's PDF uploader when reproducing the tests.

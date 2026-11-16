@@ -1,8 +1,8 @@
 
 import streamlit as st
 
-from ingest import ingest_pdf, list_documents
-from rag_pipeline import ask_university
+from src.ingest import ingest_pdf, list_documents
+from src.rag_pipeline import ask_university
 
 st.set_page_config(
     page_title="University AI Assistant",
