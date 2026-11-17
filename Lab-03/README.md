@@ -1,4 +1,4 @@
-# PUSL 3205 – Lab Sheet 03: Developing a Tiny Transformer Language Model
+# Lab Sheet 03: Developing a Tiny Transformer Language Model
 
 **Module:** PUSL3205 – Large Language Models and Generative AI  
 **Student Name:** Senarathge Senarath  
