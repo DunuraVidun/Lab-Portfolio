@@ -20,8 +20,7 @@ The implementation is organised into four parts:
 - **Part B:** AI agent with persistent memory using SQLite.
 - **Part C:** RAG-powered AI agent connected to the Retrieval-Augmented Generation (RAG) pipeline developed in Lab 05.
 - **Part D:** Google Calendar integration for checking schedules and creating events.
-
-> **Scope note:** This README documents Parts A–D. Part E (n8n) is not included in this implementation, in accordance with the lecturer's clarification that the required scope for this lab ends at Part D.
+  
 
 ## 2. Objectives
 
