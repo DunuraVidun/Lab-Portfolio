@@ -1,13 +1,5 @@
 # ============================================================
 # LAB 06 - PART D: GOOGLE CALENDAR TOOLS
-#
-# Tool 4: calendar_today_tool         - check a day's schedule
-# Tool 5: calendar_create_event_tool  - create a new event
-#
-# Setup (once):
-#   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
-#   Put credentials.json (OAuth Desktop client) beside this file.
-#   First call opens a browser for Google sign-in and creates token.json.
 # ============================================================
 
 import datetime as dt
@@ -28,7 +20,7 @@ CREDENTIALS_FILE = BASE_DIR / "credentials.json"   # downloaded from Google Clou
 TOKEN_FILE = BASE_DIR / "token.json"               # created after first sign-in
 
 TIMEZONE_NAME = "Asia/Colombo"
-LOCAL_TZ = dt.timezone(dt.timedelta(hours=5, minutes=30))   # Sri Lanka, no DST
+LOCAL_TZ = dt.timezone(dt.timedelta(hours=5, minutes=30))   # Sri Lanka
 
 DEFAULT_DURATION_MINUTES = 60
 
@@ -201,7 +193,7 @@ def calendar_create_event_tool(summary: str, start: str, end: str = "") -> str:
 
 
 # ============================================================
-# 4. NATURAL-LANGUAGE HELPERS (used by the agent's router)
+# 4. NATURAL-LANGUAGE HELPERS 
 # ============================================================
 
 WEEKDAYS = {
@@ -227,7 +219,6 @@ VIEW_PATTERN = re.compile(
     r"|\b(?:today|tomorrow)\b.*\bschedule\b"
 )
 
-# Words that mean a "schedule" question is about university documents.
 DOCUMENT_WORDS = re.compile(
     r"\b(?:exam|examination|lecture|module|semester|handbook|timetable)\b"
 )
@@ -295,7 +286,7 @@ def find_times(text: str):
 
     for match in TIME_PATTERN.finditer(text.lower()):
 
-        if match.group(3):                       # 3pm / 3:30 pm
+        if match.group(3):                       
             hour = int(match.group(1))
             minute = int(match.group(2) or 0)
 
@@ -304,7 +295,7 @@ def find_times(text: str):
 
             hour = hour % 12 + (12 if match.group(3) == "pm" else 0)
 
-        else:                                    # 15:30
+        else:                                    
             hour = int(match.group(4))
             minute = int(match.group(5))
 
@@ -364,7 +355,15 @@ def parse_event_request(text: str) -> dict:
             )
         }
 
-    day = parse_date(text) or dt.datetime.now(LOCAL_TZ).date()
+    day = parse_date(text)
+
+    if not day:
+        return {
+            "error": (
+            "Please specify the event date. "
+            "For example: Create a meeting tomorrow at 3 PM."
+            )
+        }
 
     start = dt.datetime.combine(day, dt.time(*times[0]))
 

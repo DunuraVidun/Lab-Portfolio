@@ -1,18 +1,5 @@
 # ============================================================
-# LAB 06 - PART C: RAG-POWERED AI AGENT (OPTIMIZED)
-#
-# Integrates:
-# 1. Calculator Tool       - From Part B
-# 2. Memory Search Tool    - From Part B (SQLite)
-# 3. RAG Search Tool       - From Lab 05
-#
-# Design:
-#   - A fast, deterministic ROUTER picks the tool for clear requests
-#     (no unreliable 3B-model tool guessing, no extra LLM call).
-#   - Tool results are formatted in plain Python, so answers are
-#     exact and RAG sources are never lost.
-#   - Anything the router does not recognise goes to the LLM, which
-#     can still call tools through a proper tool-calling loop.
+# LAB 06 - PART C: RAG-POWERED AI AGENT 
 # ============================================================
 
 import re
@@ -47,28 +34,42 @@ from memory_agent import (
 
 
 # ============================================================
+# PART D - GOOGLE CALENDAR TOOLS
+# ============================================================
+
+from calendar_tools import (
+    calendar_today_tool,
+    calendar_create_event_tool,
+    detect_calendar_intent,
+    parse_schedule_date,
+    parse_event_request,
+    describe_event,
+)
+
+
+# ============================================================
 # 2. CONNECT TO EXISTING LAB 05 RAG PIPELINE
 # ============================================================
-# Expected structure:
-#   Lab-Portfolio/
-#       Lab-05/  rag_pipeline.py, ingest.py, chroma_db/
-#       Lab-06/  memory_agent.py, rag_agent.py
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 LAB05_PATH = PROJECT_ROOT / "Lab-05"
 
 if not LAB05_PATH.exists():
-    raise FileNotFoundError(f"Lab-05 folder not found: {LAB05_PATH}")
+    raise FileNotFoundError(
+        f"Lab-05 folder not found: {LAB05_PATH}"
+    )
 
 if str(LAB05_PATH) not in sys.path:
     sys.path.insert(0, str(LAB05_PATH))
 
 try:
-    from rag_pipeline import ask_university
+    from src.rag_pipeline import ask_university
+
 except ImportError as error:
     raise ImportError(
-        f"Could not import ask_university from {LAB05_PATH / 'rag_pipeline.py'}: "
-        f"{error}"
+        f"Could not import ask_university from "
+        f"{LAB05_PATH / 'src' / 'rag_pipeline.py'}: {error}"
     ) from error
 
 print(f"Ollama initialized: {MODEL_NAME}")
@@ -135,15 +136,27 @@ def rag_search_tool(question: str) -> str:
         return f"RAG search error: {error}"
 
 
+
 # ============================================================
-# 5. REGISTER ALL THREE TOOLS
+# 5. REGISTER ALL FIVE TOOLS
 # ============================================================
 
-tools = [calculator_tool, memory_search_tool, rag_search_tool]
-tool_map = {registered_tool.name: registered_tool for registered_tool in tools}
+tools = [
+    calculator_tool,
+    memory_search_tool,
+    rag_search_tool,
+    calendar_today_tool,
+    calendar_create_event_tool,
+]
+
+tool_map = {
+    registered_tool.name: registered_tool
+    for registered_tool in tools
+}
+
 llm_with_tools = llm.bind_tools(tools)
 
-print("\nThree tools registered successfully:")
+print("\nFive tools registered successfully:")
 for registered_tool in tools:
     print(f"- {registered_tool.name}")
 
@@ -294,11 +307,27 @@ def route(user_input: str):
             "query": memory_query_from_question(user_input)
         }
 
-    # 4. University documents (RAG)
+    # 4. Google Calendar
+    calendar_intent = detect_calendar_intent(user_input)
+
+    if calendar_intent == "view":
+        return "calendar_today_tool", {
+            "date": parse_schedule_date(user_input)
+        }
+
+    if calendar_intent == "create":
+        event = parse_event_request(user_input)
+
+        if "error" in event:
+            return "calendar_create_error", event
+
+        return "calendar_create_confirmation", event
+
+    # 5. University documents (RAG)
     if RAG_PATTERN.search(text):
         return "rag_search_tool", {"question": user_input}
 
-    # 5. Everything else -> LLM decides
+    # 6. Everything else -> LLM decides
     return None
 
 
@@ -415,7 +444,7 @@ def format_calculator_answer(expression: str, tool_result: str) -> str:
     return f"{expression} = {match.group(1).strip()}"
 
 # ============================================================
-# MEMORY UPDATES ("update my name as ...", "change my city to ...")
+# MEMORY UPDATES 
 # ============================================================
 
 UPDATE_PATTERNS = [
@@ -476,11 +505,14 @@ def prune_all_single_value_memories():
 
 CAPABILITIES_TEXT = """\
 I can help with:
-1. Calculations   - e.g. "Calculate 250 multiplied by 4"
-2. Memory         - I remember things you tell me, e.g. "My name is Alex",
-                    then ask "What is my name?"
-3. University docs - e.g. "What are the main modules in the Computer
-                    Science degree programme?"
+
+1. Calculations - Mathematical calculations.
+2. Memory - Remember and retrieve your information.
+3. University documents - Search university knowledge using RAG.
+4. Calendar schedule - Check your Google Calendar events.
+5. Calendar creation - Create meetings and appointments
+   after your confirmation.
+
 I can also chat about general topics."""
 
 
@@ -490,6 +522,8 @@ I can also chat about general topics."""
 
 _rag_cache = {}
 
+# Stores an event temporarily until the user confirms it.
+pending_calendar_event = None
 
 def execute_tool(tool_name: str, arguments: dict) -> str:
     """Run a tool safely, with logging and RAG caching."""
@@ -525,7 +559,7 @@ def execute_tool(tool_name: str, arguments: dict) -> str:
 
 
 # ============================================================
-# 13. LLM PATH (for requests the router does not recognise)
+# 13. LLM PATH 
 # ============================================================
 
 SYSTEM_PROMPT = """
@@ -565,6 +599,46 @@ def run_agent(user_input: str, conversation_history: list):
 
     user_input = normalise_input(user_input)
 
+
+    global pending_calendar_event
+
+    # Handle a pending calendar event confirmation.
+    if pending_calendar_event is not None:
+
+        conversation_history.append(HumanMessage(content=user_input))
+
+        reply = user_input.lower().strip()
+
+        if reply in {"yes", "y", "confirm", "confirmed", "yes please"}:
+
+            result = execute_tool(
+                "calendar_create_event_tool",
+                pending_calendar_event
+            )
+
+            pending_calendar_event = None
+
+            respond(result, conversation_history)
+            return
+
+        elif reply in {"no", "n", "cancel", "no thanks"}:
+
+            pending_calendar_event = None
+
+            respond(
+                "Calendar event creation cancelled.",
+                conversation_history
+            )
+            return
+
+        else:
+            respond(
+                "Please reply 'yes' to create the event or 'no' to cancel.",
+                conversation_history
+            )
+            return
+
+
     print("\n" + "=" * 65)
     print("USER:", user_input)
     print("=" * 65)
@@ -584,7 +658,30 @@ def run_agent(user_input: str, conversation_history: list):
 
     routed = route(user_input)
 
-    # ---------------- Router-handled requests ----------------
+
+    # Handle calendar event preparation and confirmation.
+    if routed and routed[0] == "calendar_create_confirmation":
+
+        pending_calendar_event = routed[1]
+
+        respond(
+            "I am ready to create this calendar event:\n\n"
+            + describe_event(pending_calendar_event)
+            + "\n\nWould you like me to create it? (yes/no)",
+            conversation_history
+        )
+        return
+
+    if routed and routed[0] == "calendar_create_error":
+
+        respond(
+            routed[1]["error"],
+            conversation_history
+        )
+        return
+
+    
+    # Router-handled requests
     if routed:
         tool_name, arguments = routed
 
@@ -592,21 +689,32 @@ def run_agent(user_input: str, conversation_history: list):
             respond(CAPABILITIES_TEXT, conversation_history)
             return
 
+        # Execute the selected tool first
         result = execute_tool(tool_name, arguments)
 
         if tool_name == "calculator_tool":
-            answer = format_calculator_answer(arguments["expression"], result)
+            answer = format_calculator_answer(
+                arguments["expression"], result
+            )
 
         elif tool_name == "memory_search_tool":
-            answer = format_memory_answer(arguments["query"], result)
+            answer = format_memory_answer(
+                arguments["query"], result
+            )
 
-        else:  # rag_search_tool: already an LLM answer + sources
-            answer = result.replace("RAG Search Result:\n", "", 1)
+        elif tool_name == "calendar_today_tool":
+            answer = result
+
+        else:
+            answer = result.replace(
+                "RAG Search Result:\n", "", 1
+            )
 
         respond(answer, conversation_history)
         return
 
-    # ---------------- LLM-handled requests ----------------
+
+    # LLM-handled requests
     respond(run_llm_with_tools(conversation_history), conversation_history)
 
 
@@ -625,6 +733,8 @@ if __name__ == "__main__":
     print("1. Calculator Tool")
     print("2. Memory Search Tool (SQLite)")
     print("3. RAG Search Tool (Lab 05 ChromaDB)")
+    print("4. Calendar Schedule Tool (Google Calendar)")
+    print("5. Calendar Create Event Tool (Google Calendar)")
     print("\nType 'exit' to stop the agent.")
     prune_all_single_value_memories()
 

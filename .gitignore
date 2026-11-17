@@ -64,3 +64,30 @@ secrets.json
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Google Calendar authentication
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Local agent memory and application state
+agent_memory.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Google API authentication
+*.pickle
+*.pkl
+
+# Local configuration
+config.local.json
+settings.local.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak

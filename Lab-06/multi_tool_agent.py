@@ -544,10 +544,7 @@ IMPORTANT INSTRUCTIONS:
             # Correct file search arguments
             if tool_name == "file_search_tool":
 
-                tool_args = {
-                    "directory": r"D:\NSBM\3rd_Year\LLM and GenAI",
-                    "search_term": ".pdf"
-                }
+                tool_args = tool_call["args"]
 
             print("\n[TOOL SELECTED]", tool_name)
             print("[TOOL ARGUMENTS]", tool_args)
