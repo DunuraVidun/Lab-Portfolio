@@ -2,7 +2,7 @@
 
 **Student Name:** Senarathge Senarath\
 **Student ID:** 10965304\
-**Module:** PUSL3205 -- Large Language Models and Generative AI\
+**Module:** PUSL3205 -- Large Language Models and Generative AI
 
 ## 1. Introduction
 
